@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Step, IncidentData, SavedReport } from './types';
-import LoginScreen from './components/LoginScreen.tsx';
-import WelcomeScreen from './components/WelcomeScreen.tsx';
-import LocationStep from './components/LocationStep.tsx';
-import PhotoStep from './components/PhotoStep.tsx';
-import TypeStep from './components/TypeStep.tsx';
-import DetailStep from './components/DetailStep.tsx';
-import ReviewStep from './components/ReviewStep.tsx';
-import SuccessScreen from './components/SuccessScreen.tsx';
-import HistoryScreen from './components/HistoryScreen.tsx';
+import LoginScreen from './components/LoginScreen';
+import WelcomeScreen from './components/WelcomeScreen';
+import LocationStep from './components/LocationStep';
+import PhotoStep from './components/PhotoStep';
+import TypeStep from './components/TypeStep';
+import DetailStep from './components/DetailStep';
+import ReviewStep from './components/ReviewStep';
+import SuccessScreen from './components/SuccessScreen';
+import HistoryScreen from './components/HistoryScreen';
 import { analyzeIncident } from './services/geminiService';
 
 const SUPABASE_URL = 'catfuitoyibnmtjdaeia.supabase.co'; 
