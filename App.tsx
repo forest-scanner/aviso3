@@ -42,14 +42,25 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Limpiar el estado de sync después de 5 segundos
+  useEffect(() => {
+    if (syncStatus === 'success' || syncStatus === 'error') {
+      const timer = setTimeout(() => setSyncStatus('idle'), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [syncStatus]);
+
+  // Fix: Implemented missing handleLogin function to transition from LOGIN to WELCOME step
   const handleLogin = (user: string) => {
     setLoggedUser(user);
-    setIncident((prev: IncidentData) => ({ ...prev, technician: user }));
+    setIncident(prev => ({ ...prev, technician: user }));
     setCurrentStep(Step.WELCOME);
   };
 
-  const syncToCloud = useCallback(async (report: SavedReport): Promise<{ success: boolean; url?: string }> => {
-    const cleanBase64 = report.photo ? report.photo.split(',')[1] : null;
+  const syncToCloud = useCallback(async (report: SavedReport): Promise<{ success: boolean; error?: string }> => {
+    const cleanBase64 = report.photo && report.photo.includes(',') 
+      ? report.photo.split(',')[1] 
+      : report.photo;
 
     const payload = {
       external_id: report.id,
@@ -62,12 +73,14 @@ const App: React.FC = () => {
       solucion_propuesta: report.aiResponse.solucion_propuesta,
       codigo_programa: report.aiResponse.codigo_programa,
       nivel_urgencia: report.aiResponse.nivel_urgencia,
-      analisis_daño: report.aiResponse.analisis_daño_potencial,
+      analisis_daño: report.aiResponse.analisis_daño_potencial, // Asegúrate que la columna se llame así en Supabase
       foto_url: report.fotoUrl || null,
       foto_base64: cleanBase64,
       estado_validacion: report.status,
       usuario: report.technician
     };
+    
+    console.log("[CLOUD SYNC] Enviando a Supabase:", payload.external_id);
     
     try {
       const response = await fetch(`https://${SUPABASE_URL}/rest/v1/incidencias`, {
@@ -81,10 +94,17 @@ const App: React.FC = () => {
         body: JSON.stringify(payload)
       });
       
-      return { success: response.ok };
-    } catch (err) {
-      console.error("[CLOUD SYNC] Error:", err);
-      return { success: false };
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[CLOUD SYNC] Error de servidor:", response.status, errorText);
+        return { success: false, error: errorText };
+      }
+
+      console.log("[CLOUD SYNC] Éxito para ID:", payload.external_id);
+      return { success: true };
+    } catch (err: any) {
+      console.error("[CLOUD SYNC] Error crítico de red:", err);
+      return { success: false, error: err.message };
     }
   }, []);
 
@@ -122,6 +142,7 @@ const App: React.FC = () => {
     try {
       localStorage.setItem('valoriza_supabase_v2', JSON.stringify(updatedReports));
     } catch (e) {
+      // Si el localStorage falla por tamaño (base64 grande), intentamos guardar sin la foto
       const lighterReports = updatedReports.map((r, i) => i === 0 ? r : { ...r, photo: null });
       localStorage.setItem('valoriza_supabase_v2', JSON.stringify(lighterReports));
     }
@@ -132,8 +153,10 @@ const App: React.FC = () => {
   const handleRetrySync = async (id: string) => {
     const reportIndex = reports.findIndex(r => r.id === id);
     if (reportIndex === -1) return;
+    
     setSyncStatus('sending');
     const result = await syncToCloud(reports[reportIndex]);
+    
     if (result.success) {
       const updated = [...reports];
       updated[reportIndex] = { ...updated[reportIndex], synced: true };
@@ -178,28 +201,4 @@ const App: React.FC = () => {
       case Step.LOCATION: return <LocationStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.PHOTO)} />;
       case Step.PHOTO: return <PhotoStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.TYPE)} onBack={() => setCurrentStep(Step.LOCATION)} />;
       case Step.TYPE: return <TypeStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.DETAILS)} onBack={() => setCurrentStep(Step.PHOTO)} />;
-      case Step.DETAILS: return <DetailStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.REVIEW)} onBack={() => setCurrentStep(Step.TYPE)} />;
-      case Step.REVIEW: return <ReviewStep incident={incident} onBack={() => setCurrentStep(Step.DETAILS)} onSubmit={handleAnalyze} isSubmitting={isAnalyzing} onEditPhoto={() => setCurrentStep(Step.PHOTO)} validationAttempts={validationAttempts} />;
-      case Step.SUCCESS: return <SuccessScreen report={reports[0]} onReset={() => setCurrentStep(Step.WELCOME)} onViewHistory={() => setCurrentStep(Step.HISTORY)} />;
-      case Step.HISTORY: return <HistoryScreen reports={reports} onBack={() => setCurrentStep(Step.WELCOME)} onRetrySync={handleRetrySync} />;
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950">
-      <div className="w-full max-w-md h-screen sm:h-[850px] bg-white dark:bg-gray-900 sm:rounded-[2.5rem] shadow-2xl relative flex flex-col overflow-hidden sm:border-8 border-gray-800">
-        {syncStatus === 'sending' && (
-          <div className="absolute top-0 left-0 w-full h-1 bg-green-200 z-[100]">
-            <div className="h-full bg-green-600 animate-[pulse_1.5s_infinite]"></div>
-          </div>
-        )}
-        {syncStatus === 'error' && (
-          <div className="absolute top-0 left-0 w-full h-1 bg-red-500 z-[100] shadow-md shadow-red-500/50"></div>
-        )}
-        {renderStep()}
-      </div>
-    </div>
-  );
-};
-
-export default App;
+      case Step.DETAILS: return <DetailStep incident={incident} onUpdate={(
