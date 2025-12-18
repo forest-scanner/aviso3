@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Step, IncidentData, SavedReport } from './types';
-import LoginScreen from './components/LoginScreen';
-import WelcomeScreen from './components/WelcomeScreen';
-import LocationStep from './components/LocationStep';
-import PhotoStep from './components/PhotoStep';
-import TypeStep from './components/TypeStep';
-import DetailStep from './components/DetailStep';
-import ReviewStep from './components/ReviewStep';
-import SuccessScreen from './components/SuccessScreen';
-import HistoryScreen from './components/HistoryScreen';
-import { analyzeIncident } from './services/geminiService';
+import { Step, IncidentData, SavedReport } from './types.ts';
+import LoginScreen from './components/LoginScreen.tsx';
+import WelcomeScreen from './components/WelcomeScreen.tsx';
+import LocationStep from './components/LocationStep.tsx';
+import PhotoStep from './components/PhotoStep.tsx';
+import TypeStep from './components/TypeStep.tsx';
+import DetailStep from './components/DetailStep.tsx';
+import ReviewStep from './components/ReviewStep.tsx';
+import SuccessScreen from './components/SuccessScreen.tsx';
+import HistoryScreen from './components/HistoryScreen.tsx';
+import { analyzeIncident } from './services/geminiService.ts';
 
 const SUPABASE_URL = 'catfuitoyibnmtjdaeia.supabase.co'; 
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhdGZ1aXRveWlibm10amRhZWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwNTg2OTMsImV4cCI6MjA4MTYzNDY5M30.GUv9kwU7MKduUy6ZMKZq0aRn_HSqwVLI_BQqzcyI2Rc';
