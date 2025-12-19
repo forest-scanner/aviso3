@@ -1,6 +1,7 @@
+
 {
-  "name": "Avisos Valoriza - Gestión de Zonas Verdes",
-  "description": "Aplicación técnica para la validación y gestión de incidencias en infraestructuras verdes urbanas, integrada con IA para diagnóstico técnico y clasificación de mantenimiento.",
+  "name": "Avisos IA Zonas Verdes",
+  "description": "Aplicación técnica para la validación y gestión de incidencias en infraestructuras verdes de Madrid, integrada con IA para diagnóstico técnico y clasificación de mantenimiento.",
   "requestFramePermissions": [
     "camera",
     "geolocation"

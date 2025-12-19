@@ -20,6 +20,8 @@ const App: React.FC = () => {
   const [validationAttempts, setValidationAttempts] = useState(0);
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [authError, setAuthError] = useState<string | null>(null);
+  
   const [incident, setIncident] = useState<IncidentData>({
     location: { address: 'Localizando...', lat: 40.4168, lng: -3.7038, district: 'Madrid' },
     photo: null,
@@ -32,7 +34,7 @@ const App: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('valoriza_supabase_v2');
+    const saved = localStorage.getItem('avisos_ia_v2');
     if (saved) {
       try {
         setReports(JSON.parse(saved));
@@ -42,26 +44,48 @@ const App: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (syncStatus === 'success' || syncStatus === 'error') {
-      const timer = setTimeout(() => setSyncStatus('idle'), 5000);
-      return () => clearTimeout(timer);
+  const handleLogin = async (email: string, pass: string) => {
+    setAuthError(null);
+    const cleanEmail = email.toLowerCase().trim();
+    
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setAuthError("ID no reconocido.");
+      return;
     }
-  }, [syncStatus]);
 
-  const handleLogin = (user: string) => {
-    setLoggedUser(user);
-    setIncident(prev => ({ ...prev, technician: user }));
-    setCurrentStep(Step.WELCOME);
+    try {
+      const response = await fetch(`https://${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: pass
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.msg || data.message || "Credenciales inválidas.");
+      }
+
+      setLoggedUser(data.user.email);
+      setIncident(prev => ({ ...prev, technician: data.user.email }));
+      setCurrentStep(Step.WELCOME);
+    } catch (err: any) {
+      setAuthError(err.message);
+    }
   };
 
   const syncToCloud = useCallback(async (report: SavedReport): Promise<{ success: boolean }> => {
-    // Extraer solo la data base64 sin el prefijo data:image/...
     const cleanBase64 = report.photo && report.photo.includes(',') 
       ? report.photo.split(',')[1] 
       : report.photo;
 
-    // Payload ajustado exactamente a las 14 columnas de tu server.js / tabla SQL
     const payload = {
       external_id: report.id,
       tipo_incidencia: report.type,
@@ -79,8 +103,6 @@ const App: React.FC = () => {
       usuario: report.technician
     };
     
-    console.log("[SUPABASE] Intentando sincronizar ID:", payload.external_id);
-    
     try {
       const response = await fetch(`https://${SUPABASE_URL}/rest/v1/incidencias`, {
         method: 'POST',
@@ -93,16 +115,8 @@ const App: React.FC = () => {
         body: JSON.stringify(payload)
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[SUPABASE ERROR]", response.status, errorText);
-        return { success: false };
-      }
-
-      console.log("[SUPABASE SUCCESS] Reporte guardado en la nube.");
-      return { success: true };
+      return { success: response.ok };
     } catch (err) {
-      console.error("[SUPABASE CRITICAL ERROR]", err);
       return { success: false };
     }
   }, []);
@@ -110,7 +124,7 @@ const App: React.FC = () => {
   const saveReport = async (data: IncidentData, status: 'VALIDADO' | 'MANUAL') => {
     setSyncStatus('sending');
     const newReport: SavedReport = {
-      id: `VAL-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: `AV-${Math.floor(1000 + Math.random() * 9000)}`,
       timestamp: new Date().toLocaleString('es-ES'),
       type: data.type,
       address: data.location.address,
@@ -123,10 +137,10 @@ const App: React.FC = () => {
         mensaje_usuario: 'Reporte manual',
         diagnostico_ia: 'No verificado por IA',
         solucion_propuesta: 'Inspección técnica manual',
-        codigo_programa: 'MANUAL_Z3',
+        codigo_programa: 'MANUAL',
         requiere_seguimiento: 'SI',
         nivel_urgencia: 3,
-        analisis_daño_potencial: 'Evaluación técnica pendiente'
+        analisis_daño_potencial: 'Evaluación pendiente'
       },
       status: status,
       synced: false
@@ -137,29 +151,20 @@ const App: React.FC = () => {
 
     const updatedReports = [newReport, ...reports];
     setReports(updatedReports);
-    
-    try {
-      localStorage.setItem('valoriza_supabase_v2', JSON.stringify(updatedReports));
-    } catch (e) {
-      const lighterReports = updatedReports.map((r, i) => i === 0 ? r : { ...r, photo: null });
-      localStorage.setItem('valoriza_supabase_v2', JSON.stringify(lighterReports));
-    }
-    
+    localStorage.setItem('avisos_ia_v2', JSON.stringify(updatedReports));
     setSyncStatus(result.success ? 'success' : 'error');
   };
 
   const handleRetrySync = async (id: string) => {
     const reportIndex = reports.findIndex(r => r.id === id);
     if (reportIndex === -1) return;
-    
     setSyncStatus('sending');
     const result = await syncToCloud(reports[reportIndex]);
-    
     if (result.success) {
       const updated = [...reports];
       updated[reportIndex] = { ...updated[reportIndex], synced: true };
       setReports(updated);
-      localStorage.setItem('valoriza_supabase_v2', JSON.stringify(updated));
+      localStorage.setItem('avisos_ia_v2', JSON.stringify(updated));
       setSyncStatus('success');
     } else {
       setSyncStatus('error');
@@ -184,7 +189,6 @@ const App: React.FC = () => {
         }
       }
     } catch (e) {
-      console.error("AI Analysis failed, falling back to manual", e);
       await saveReport(incident, 'MANUAL');
       setCurrentStep(Step.SUCCESS);
     } finally {
@@ -194,12 +198,12 @@ const App: React.FC = () => {
 
   const renderStep = () => {
     switch (currentStep) {
-      case Step.LOGIN: return <LoginScreen onLogin={handleLogin} />;
+      case Step.LOGIN: return <LoginScreen onLogin={handleLogin} error={authError} />;
       case Step.WELCOME: return <WelcomeScreen onStart={() => setCurrentStep(Step.LOCATION)} onViewHistory={() => setCurrentStep(Step.HISTORY)} user={loggedUser} />;
-      case Step.LOCATION: return <LocationStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.PHOTO)} />;
-      case Step.PHOTO: return <PhotoStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.TYPE)} onBack={() => setCurrentStep(Step.LOCATION)} />;
-      case Step.TYPE: return <TypeStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.DETAILS)} onBack={() => setCurrentStep(Step.PHOTO)} />;
-      case Step.DETAILS: return <DetailStep incident={incident} onUpdate={(u: Partial<IncidentData>) => setIncident((prev: IncidentData) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.REVIEW)} onBack={() => setCurrentStep(Step.TYPE)} />;
+      case Step.LOCATION: return <LocationStep incident={incident} onUpdate={(u) => setIncident((prev) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.PHOTO)} />;
+      case Step.PHOTO: return <PhotoStep incident={incident} onUpdate={(u) => setIncident((prev) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.TYPE)} onBack={() => setCurrentStep(Step.LOCATION)} />;
+      case Step.TYPE: return <TypeStep incident={incident} onUpdate={(u) => setIncident((prev) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.DETAILS)} onBack={() => setCurrentStep(Step.PHOTO)} />;
+      case Step.DETAILS: return <DetailStep incident={incident} onUpdate={(u) => setIncident((prev) => ({...prev, ...u}))} onNext={() => setCurrentStep(Step.REVIEW)} onBack={() => setCurrentStep(Step.TYPE)} />;
       case Step.REVIEW: return <ReviewStep incident={incident} onBack={() => setCurrentStep(Step.DETAILS)} onSubmit={handleAnalyze} isSubmitting={isAnalyzing} onEditPhoto={() => setCurrentStep(Step.PHOTO)} validationAttempts={validationAttempts} />;
       case Step.SUCCESS: return <SuccessScreen report={reports[0]} onReset={() => setCurrentStep(Step.WELCOME)} onViewHistory={() => setCurrentStep(Step.HISTORY)} />;
       case Step.HISTORY: return <HistoryScreen reports={reports} onBack={() => setCurrentStep(Step.WELCOME)} onRetrySync={handleRetrySync} />;
@@ -207,18 +211,18 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950">
-      <div className="w-full max-w-md h-screen sm:h-[850px] bg-white dark:bg-gray-900 sm:rounded-[2.5rem] shadow-2xl relative flex flex-col overflow-hidden sm:border-8 border-gray-800">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md h-screen sm:h-[850px] bg-white sm:rounded-[3rem] shadow-premium relative flex flex-col overflow-hidden sm:border-8 border-white">
         {syncStatus === 'sending' && (
-          <div className="absolute top-0 left-0 w-full h-1 bg-green-200 z-[100] overflow-hidden">
-            <div className="h-full bg-green-600 animate-[pulse_1s_infinite]"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-primary/20 z-[100] overflow-hidden">
+            <div className="h-full bg-primary animate-[pulse_1.5s_infinite] w-full"></div>
           </div>
         )}
         {syncStatus === 'error' && (
-          <div className="absolute top-0 left-0 w-full h-1 bg-red-500 z-[100] shadow-md shadow-red-500/50"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-red-400 z-[100]"></div>
         )}
         {syncStatus === 'success' && (
-          <div className="absolute top-0 left-0 w-full h-1 bg-green-500 z-[100]"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-primary z-[100]"></div>
         )}
         {renderStep()}
       </div>

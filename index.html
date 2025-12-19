@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Avisos Valoriza</title>
+    <title>Avisos IA Zonas Verdes</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round|Material+Icons+Outlined" rel="stylesheet">
     <script>
       tailwind.config = {
@@ -13,15 +13,23 @@
         theme: {
           extend: {
             colors: {
-              primary: "#8DBE58",
-              secondary: "#2563EB",
-              "background-light": "#F3F4F6",
-              "background-dark": "#111827",
+              primary: "#10B981", 
+              secondary: "#3B82F6",
+              gray: {
+                50: "#F9FAFB",
+                100: "#F3F4F6",
+                800: "#1F2937",
+                900: "#111827",
+              }
             },
             fontFamily: {
               sans: ["Inter", "sans-serif"],
               display: ["Roboto", "sans-serif"],
             },
+            boxShadow: {
+              'premium': '0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 5px 15px -5px rgba(0, 0, 0, 0.02)',
+              'card': '0 0 0 1px rgba(0,0,0,0.03), 0 2px 4px rgba(0,0,0,0.05), 0 12px 24px rgba(0,0,0,0.05)',
+            }
           }
         }
       }
@@ -30,16 +38,17 @@
       body {
         font-family: 'Inter', sans-serif;
         -webkit-tap-highlight-color: transparent;
+        background-color: #F3F4F6;
       }
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       
-      @keyframes bounce-slow {
-        0%, 100% { transform: translateY(-5%); }
-        50% { transform: translateY(5%); }
+      @keyframes soft-float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
       }
-      .animate-bounce-slow {
-        animation: bounce-slow 3s infinite ease-in-out;
+      .animate-float {
+        animation: soft-float 4s infinite ease-in-out;
       }
     </style>
 <script type="importmap">
@@ -56,7 +65,7 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-gray-100 dark:bg-gray-950">
+<body class="bg-gray-100 text-gray-800">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
 <script type="module" src="/index.tsx"></script>
