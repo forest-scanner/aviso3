@@ -2,18 +2,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GeminiResponse, IncidentData, DISTRICTS_Z2 } from "../types";
 
 const SYSTEM_INSTRUCTION = `
-Rol: Actúas como un Técnico Superior de Gestión de Infraestructura Verde Urbana para la aplicación "Avisos Valoriza". Tu objetivo es validar imágenes de incidencias, proponer soluciones técnicas y clasificar la actuación dentro del programa de mantenimiento correcto (Z2 o Z3).
+Rol: Eres un Inspector Senior de Infraestructura Verde del Ayuntamiento de Madrid.
+Tu misión es validar incidencias reportadas por técnicos de campo.
 
-Tarea 1: Validación de Imagen (Filtro de Calidad)
-Analiza la fotografía subida por el usuario. Determina si la imagen muestra realmente lo que el usuario describe. Si la imagen es borrosa o no tiene relación, responde: VALIDACIÓN: FALLIDA.
+CRITERIOS DE VALIDACIÓN:
+1. PRIORIDAD TÉCNICA: Si el técnico describe una incidencia específica (ej: "nidos de procesionaria", "fuga en goteo") y la imagen muestra el entorno correcto de una zona verde, debes ser propenso a la validación EXITOSA, incluso si la incidencia es difícil de ver a simple vista en la foto.
+2. FALLO DE VALIDACIÓN: Solo marcarás "FALLIDA" si la imagen es totalmente ajena al reporte (ej: foto de un interior, un selfie, o imagen totalmente negra/borrosa que impida ver el activo verde).
+3. DIAGNÓSTICO: Proporciona un análisis profesional basado en la patología vegetal o hidráulica detectada.
+4. SOLUCIÓN: Propón una actuación concreta basada en los Pliegos de Mantenimiento de Madrid.
 
-Tarea 2: Diagnóstico y Solución
-Identifica la patología y propón la solución técnica adecuada.
-
-Tarea 3: Clasificación por Programa (Z2 / Z3)
-Según el distrito, aplica el prefijo correspondiente (Z2 o Z3) y busca la coincidencia en la lista oficial.
-
-REQUERIMIENTO: Responde EXCLUSIVAMENTE en formato JSON conforme al esquema proporcionado.
+REQUERIMIENTO: Responde EXCLUSIVAMENTE en formato JSON. No incluyas texto fuera del bloque JSON.
 `;
 
 export const analyzeIncident = async (data: IncidentData): Promise<GeminiResponse> => {
@@ -24,9 +22,13 @@ export const analyzeIncident = async (data: IncidentData): Promise<GeminiRespons
   const zone = DISTRICTS_Z2.includes(data.location.district) ? "Z2" : "Z3";
 
   const prompt = `
-    Analiza esta imagen. El usuario está en el distrito ${data.location.district} (${zone}). 
-    Descripción: '${data.description}'. 
-    Valida la incidencia y asígnale el código de programa ${zone} correcto.
+    INFORME DEL TÉCNICO:
+    - Distrito: ${data.location.district} (Zona ${zone})
+    - Tipo reportado: ${data.type}
+    - Descripción: "${data.description}"
+    - Urgencia percibida: ${data.isUrgent ? 'ALTA' : 'NORMAL'}
+
+    TAREA: Analiza la imagen adjunta. Si coincide mínimamente con el contexto de la descripción, marca validacion="EXITO". Si no tiene nada que ver, marca validacion="FALLIDA".
   `;
 
   if (!data.photo) throw new Error("No photo provided");
@@ -47,7 +49,10 @@ export const analyzeIncident = async (data: IncidentData): Promise<GeminiRespons
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          validacion: { type: Type.STRING },
+          validacion: { 
+            type: Type.STRING, 
+            description: "Debe ser 'EXITO' o 'FALLIDA'" 
+          },
           mensaje_usuario: { type: Type.STRING },
           diagnostico_ia: { type: Type.STRING },
           solucion_propuesta: { type: Type.STRING },
@@ -74,8 +79,8 @@ export const geocodeAddress = async (address: string): Promise<{ lat: number; ln
   
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-native-audio-preview-09-2025",
-      contents: `Proporciona las coordenadas (lat, lng) y el distrito de Madrid para la dirección: "${address}". Responde únicamente con un objeto JSON: {"lat": 0.0, "lng": 0.0, "distrito": "Nombre"}`,
+      model: "gemini-3-flash-preview",
+      contents: `Coordenadas (lat, lng) y distrito para: "${address}". Responde únicamente con JSON: {"lat": 40.41, "lng": -3.70, "distrito": "Nombre"}`,
       config: {
         tools: [{ googleMaps: {} }],
       },
@@ -93,7 +98,7 @@ export const geocodeAddress = async (address: string): Promise<{ lat: number; ln
     }
     return null;
   } catch (error) {
-    console.error("[GEOCODE] Error crítico:", error);
+    console.error("[GEOCODE] Error:", error);
     return null;
   }
 };
